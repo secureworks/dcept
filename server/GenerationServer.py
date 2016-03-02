@@ -103,9 +103,10 @@ class HttpHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 
 		global gsHandle
 
-		if not s.path.startswith("/backup"):
-			s.send_response(404)
-			return
+		#if not s.path.startswith("/backup"):
+		#	s.send_response(404)
+		#	return
+
 		s.send_response(200)
 		s.send_header("Content-type", "text/json")
 		s.end_headers()
@@ -127,7 +128,7 @@ class HttpHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 		password = gsHandle.genPass()
 		jSONstring = "{'d':'%s','u':'%s',p:'%s'}" % (domain, username, password)
 		s.wfile.write(jSONstring)
-		logging.DEBUG("Sent:"+jSONstring)
+		print "Sent:"+jSONstring
 
         # Log transaction
 		c = gsHandle.conn.cursor()
