@@ -1,0 +1,9 @@
+DCEPT - A tool for deploying honeytoken-based tripwires
+
+Primary authors: Joe Stewart and James Bettke, security researchers for Dell SecureWorks. 
+
+A special thanks to SANS Handler Mark Baggett, for the suggestion of using Microsoft's own APIs to inject honeytokens into memory:
+
+https://isc.sans.edu/diary/Detecting+Mimikatz+Use+On+Your+Network/19311
+
+Also thanks to known and unknown authors of public-domain code snippets and libraries that made this project relatively simple to create. We all stand on the shoulders of giants. 
