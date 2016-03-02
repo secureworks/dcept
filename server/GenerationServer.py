@@ -44,7 +44,7 @@ class GenerationServer:
 			self.conn = sqlite3.connect(self.sqlite_path, check_same_thread=False)
 			c = self.conn.cursor()
 			c.execute('''CREATE TABLE db_version (major integer, minor integer)''')
-			c.execute("INSERT INTO db_version VALUES (?,?)"), (1,0)
+			c.execute("INSERT INTO db_version VALUES (?,?)", (1,0))
 
 			c.execute('''CREATE TABLE logs
 				 (date text, domain text, username text, machine text, password text)''')
