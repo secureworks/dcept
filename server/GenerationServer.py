@@ -21,7 +21,7 @@ gsHandle = None
 class GenerationServer:
 
 	def __init__(self, hostname="", http_port=80, sqlite_path='/opt/dcept/var/honeytoken.db'):
-		http_port=int(http_port)
+		http_port = int(http_port)
 		server_class = BaseHTTPServer.HTTPServer
 		self.httpd = server_class((hostname, http_port), HttpHandler)
 		
