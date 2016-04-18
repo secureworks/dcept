@@ -118,10 +118,10 @@ class HttpHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 		#print qs
 		machine = ""
 		try:
-			machine = qs['machine'][0]
+			machine = qs[config.honeytoken_param_name][0]
 		except:
 			return
-		print "Request from:",machine
+		print "Request from IP: %s workstation: %s" % (s.client_address[0], machine)
 
 		domain = config.domain 
 		username = config.honey_username
