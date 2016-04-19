@@ -28,7 +28,7 @@ else
 fi
 
 echo "Starting container..."
-docker run $arg --name dcept --cap-add=NET_ADMIN -p 80:8080 --net=host -v `pwd`/volume:/opt/dcept/var dcept /opt/dcept/dcept.py 
+docker run $arg --name dcept --cap-add=NET_ADMIN -p 80:8080 --net=host -v `pwd`/volume:/opt/dcept/var dcept
 
 if [ -n "$1" ]; then
 	CONTAINER=$(docker ps -q -f name=dcept) 
