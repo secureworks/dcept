@@ -35,6 +35,7 @@ class ConfigReader():
 		self.checkConfig()
 
 	def setDefaults(self):
+		self.master_node			= None
 		self.honeytoken_host		= "0.0.0.0"
 		self.honeytoken_port		= 80
 		self.honeytoken_param_name  = "machine"
