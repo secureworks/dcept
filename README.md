@@ -24,8 +24,10 @@ A Docker container build for the server components is provided, making deploymen
 
 ### Configuration
 
-The configuration file is named “dcept.cfg” and must modified before running the Docker container. Currently only notifications via rsyslog are supported. Configure syslog_host to point to your SIEM's syslog server.
+The configuration file is named “dcept.cfg” and must be modified before running the Docker container. Currently only notifications via rsyslog are supported. Configure syslog_host to point to your SIEM's syslog server.
 
+#### Multi-server Architecture
+DCEPT can be run in standalone or a multi-server configuration. By default, DCEPT runs as a master node where it is responsible for generating credentials and sniffing out the authentication requests.  Traffic from multiple DCs can be monitored by a single DCEPT instance using network taps. Alternatively, DCEPT can run as a slave node by setting  the “master_node” option to point to a master node. In this configuration, the slave nodes sniff and then relay relevant data to the master node where it is matched against the database of credentials. 
 
 ### Building the Docker Image
 
@@ -45,7 +47,7 @@ root@host:~# ./launcher.sh
 Run the container in the  background with the following command:
 ```bash
 root@host:~# cd server
-root@host:~# ./launcher.sh
+root@host:~# ./daemon.sh
 ```
 
 ### Building the Agent
@@ -84,6 +86,13 @@ How the agent is deployed will vary from organization to organization and is ent
 
 
 #### Testing
+
+Run the following command to get an interactive shell inside the container.
+
+```bash
+root@host:~# docker exec -it dcept /bin/bash
+```
+
 tcpreplay is installed inside the docker container along with a sample pcap for testing purposes. While DCEPT is running, execute the following from within the container:
 
 ```bash
