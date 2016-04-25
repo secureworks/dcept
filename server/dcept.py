@@ -5,9 +5,9 @@
 # Dell SecureWorks 2016
 
 import GenerationServer
+from Cracker import cracker
 import pyshark
 import os
-import subprocess
 import sys
 import socket 
 
@@ -21,15 +21,18 @@ import pyshark
 import pyiface
 import alert
 
-import threading
-import tempfile
-import shutil
+import urllib
+import urllib2
+import socket
+
+# Globals
+genServer = None
 
 class DceptError(Exception):
 	def __init__(self, message=""):
 		Exception.__init__(self,message)
 
-def kerbsniff(interface, username, domain, realm, genServer):
+def kerbsniff(interface, username, domain, realm):
 
 	logging.info("kerbsniff: Looking for %s\%s on %s" % (domain,username,interface))
 	
@@ -48,31 +51,46 @@ def kerbsniff(interface, username, domain, realm, genServer):
 			# Extract encrypted timestamp for Kerberos Preauthentication packets
 			# that conatin honeytoken domain\username
 			encTimestamp = kerb_handler(kp,domain,username)
-		except KeyError:
+		except KeyError as e:
 			pass
 		
+		
 
-		# Only attempt to decrypt a password if we find an encrypted timestamp
+		# Only attempt to decrypt a password or notify master if we find an encrypted timestamp
 		if encTimestamp:
-			
-			# Cracking takes awhile, so do this in another thread
-			thread = threading.Thread(target = testPassword, args = (username, domain,  encTimestamp, genServer))
-			thread.daemon = True
-			thread.start()
 
- 
-				
+			if config.master_node:
+				notifyMaster(username, domain, encTimestamp)
+			else:
+				cracker.enqueueJob(username, domain, encTimestamp, passwordHit)
 
-def testPassword(username, domain,  encTimestamp, genServer):
 
-	# Given the encrypted timestamp recover the generated password 
-	password = recoverPassword(username, domain,  encTimestamp, genServer)
+def notifyMaster(username, domain, encTimestamp):
+	url = 'http://%s/notify' % (config.master_node)
+	values = {	'u' : username,
+					'd' : domain,
+					't' : encTimestamp
+				}
+	data = urllib.urlencode(values)
+
+	try:
+		req = urllib2.Request(url, data)
+		response = urllib2.urlopen(req, timeout=30)
+	except (urllib2.URLError, socket.timeout) as e:
+		message = "DCEPT slave Failed to communicate with master node '%s'" % (config.master_node)
+		logging.error(message)
+		alert.sendAlert(message)
+		return False
+	return True
+
+def passwordHit(genServer, password):
 
 	if password:
 		record = genServer.findPass(password)
 		message = "[RED ALERT] Honeytoken for %s\\%s '%s' was stolen from %s on %s" % \
 			(record[1],record[2], record[4], record[3], record[0].split(" ")[0] )
-		print "\x1b[91m" + message + "\x1b[0m"
+		#print "\x1b[91m" + message + "\x1b[0m"
+		print "\x1b[91m" + "[RED ALERT]" + "\x1b[0m"
 		logging.critical(message)			
 		alert.sendAlert(message)
 
@@ -127,54 +145,7 @@ def kerb_handler(kp, domain,username):
 	return encTimestamp
 
 
-# Take the encrypted timestamp and recover the generated password using a 
-# password cracker.This should not take take very long since we are only 
-# interested in the short word list of passwords made by the generation server. 
-# It should crack the most recent passwords working backward. In practice the 
-# only time this subroutine is called is when someone uses the honeytoken 
-# domain\username. 
-def recoverPassword(username, domain,  encTimestamp, genServer):
 
-
-	tmpDir = tempfile.mkdtemp("-dcept")
-
-	wordPath = tmpDir + "/wordlist.tmp"
-	passPath = tmpDir + "/encPass.tmp"
-	potPath  = tmpDir + "/john.pot"
-
-	logging.debug("Recovering password from encrypted timestamp...")
-	
-	# Create password file for cracking tool
-	fh = open(passPath, 'w')
-	fh.write("$%s$%d$%s$%s$$%s" % ("krb5pa",18,username, domain, encTimestamp))
-	fh.close()
-	
-	# Create word list of the generated passwords ordered by most recent	
-	fh = open(wordPath, 'w')
-	
-	wordlist = genServer.getPasswords()
-	if len(wordlist) == 0:
-		logging.info("Generation server hasn't issued any passwords. There is nothing to crack")
-		return
-
-	logging.info("Testing %d password(s)" % (len(wordlist)))
-	fh.write("\n".join(wordlist))
-	fh.close()
-
-	redirectStr = ""
-	if logging.getLogger().getEffectiveLevel() != logging.DEBUG:
-		redirectStr = "2>/dev/null"
-
-	result = subprocess.check_output("/opt/dcept/john --wordlist=%s --pot=%s --format=krb5pa-sha1 %s %s" % (wordPath, potPath, passPath, redirectStr), shell=True)
-	shutil.rmtree(tmpDir)
-
-	logging.debug(result)
-	lines = result.split("\n")
- 
-	for line in lines:
-		if line.endswith("(?)"):
-			password = line.split(" ")
-			return password[0]
 
 
 
@@ -207,6 +178,14 @@ def main():
 		logging.error(e)
 		raise DceptError()
 	
+	# Server roles for multi-server topology
+	if not config.master_node:
+		logging.info('Server configured as master node')
+	else:
+		logging.info('Server configured as slave node')
+
+		# Test Connection to master node
+
 	# Sanity check - Check if the interface is up
 	if not testInterface(config.interface):
 		logging.error("Unable to listen on '%s'. Is the interface up?" % (config.interface))
@@ -214,18 +193,30 @@ def main():
 
 	logging.info('Starting DCEPT...')
 
-	# Spawn and start the password generation server
-	genServer = None
-	try:
-		genServer = GenerationServer.GenerationServer(config.honeytoken_host, config.honeytoken_port)
-	except socket.error as e:
-		logging.error(e)
-		logging.error("Failed to bind honeytoken HTTP server to address %s on port %s" % (config.honeytoken_host, config.honeytoken_port))
-		raise DceptError()
+	# Only master node should run the generation server and cracker 
+	if not config.master_node: # (Master Node)
 
-	
+		# Spawn and start the password generation server
+		try:
+			global genServer 
+			genServer = GenerationServer.GenerationServer(config.honeytoken_host, config.honeytoken_port)
+		except socket.error as e:
+			logging.error(e)
+			logging.error("Failed to bind honeytoken HTTP server to address %s on port %s" % (config.honeytoken_host, config.honeytoken_port))
+			raise DceptError()
+
+		# Initialize the cracker
+		cracker.start(genServer)
+
+	else: # (Slave Node)
+		# Test sending notifications to the master node
+		logging.info("Testing connection to master node '%s'" % (config.master_node))
+		if not notifyMaster('u', 'd', 't'):
+			raise DceptError()
+
+	# Start the sniffer (Both master and slave)
 	try:
-		kerbsniff(config.interface,config.honey_username, config.domain, config.realm, genServer)
+		kerbsniff(config.interface,config.honey_username, config.domain, config.realm)
 	except pyshark.capture.capture.TSharkCrashException:
 		
 		logging.error(message)

@@ -4,7 +4,8 @@
 # James Bettke
 # Dell SecureWorks 2016
 
-import BaseHTTPServer
+from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
+from SocketServer import ThreadingMixIn
 import urlparse
 import random
 from datetime import datetime
@@ -13,8 +14,14 @@ import sqlite3
 import threading
 import logging
 from ConfigReader import config
+import cgi
+import cgitb
+
+from Cracker import cracker
+import dcept
 
 # https://wiki.python.org/moin/BaseHttpServer
+
 
 gsHandle = None
 
@@ -22,8 +29,7 @@ class GenerationServer:
 
 	def __init__(self, hostname="", http_port=80, sqlite_path='/opt/dcept/var/honeytoken.db'):
 		http_port = int(http_port)
-		server_class = BaseHTTPServer.HTTPServer
-		self.httpd = server_class((hostname, http_port), HttpHandler)
+		server_class = ThreadedHTTPServer #BaseHTTPServer.HTTPServer
 		
 		global gsHandle
 		gsHandle = self
@@ -32,11 +38,18 @@ class GenerationServer:
 		self.conn = None
 		self.initDatabase()
 
-		# Start the webserver
-		thread = threading.Thread(target = self.httpd.serve_forever)
-		thread.daemon = True
-		logging.info("Starting honeytoken generation server HTTP daemon %s:%d" % (hostname,http_port))
-		thread.start()
+		# Only master node should run the generation server 
+		if not config.master_node:
+			
+			logging.info("Database contains %d generated passwords" % self.getRecordCount())
+
+			self.httpd = server_class((hostname, http_port), HttpHandler)
+
+			# Start the webserver on it's own thread. Call to serve_forever() blocks
+			thread = threading.Thread(target = self.httpd.serve_forever)
+			thread.daemon = True
+			logging.info("Starting honeytoken generation server HTTP daemon %s:%d" % (hostname,http_port))
+			thread.start()
 
 
 	# Initialize the sqlite database. Create the db and tables if it doesn't exist.
@@ -97,9 +110,15 @@ class GenerationServer:
 			passwords.append(i[0])
 		return passwords
 
-class HttpHandler(BaseHTTPServer.BaseHTTPRequestHandler):
+	def getRecordCount(self):
+		c = self.conn.cursor()
+		c.execute("SELECT count(password) FROM logs")
+		return c.fetchone()
 
+class HttpHandler(BaseHTTPRequestHandler):
 
+	# Generation requests from endpoints are always GET requests and must contain 
+	# the honeytoken_param_name parameter.
 	def do_GET(s):
 
 		global gsHandle
@@ -131,11 +150,37 @@ class HttpHandler(BaseHTTPServer.BaseHTTPRequestHandler):
 		s.wfile.write(jSONstring)
 		print "Sent:"+jSONstring
 
-        # Log transaction
+      # Log transaction
 		c = gsHandle.conn.cursor()
 		c.execute("INSERT INTO logs VALUES (?,?,?,?,?)", (datetime.now(), domain, username, machine, password))
 		gsHandle.conn.commit()
 
+
+	# DCEPT to DCEPT communication happens via POST requests.
+	# Example for dcepttest: POST /notify
+	# u=Administrator&d=ALLSAFE.LAN&t=64118a956797600c6e1239f1cf9c8db4ae780f0a1d0bc8b3a0e12de736a14792f17cb58671e42813fbd522e22e021c5d6924b7b114064889
+	def do_POST(s):
+		length = int(s.headers['content-length'])
+		postvars = cgi.parse_qs(s.rfile.read(length), keep_blank_values=1)
+
+		logging.debug(postvars)
+
+		try:					
+			username     = postvars['u'][0]
+			domain		 = postvars['d'][0]
+			encTimestamp = postvars['t'][0]
+		except:		
+			s.send_response(500)
+			s.end_headers()	
+			return		
+
+		cracker.enqueueJob(username, domain, encTimestamp, dcept.passwordHit)		
+
+		s.send_response(200)
+		s.end_headers()
+
+class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+    """Handle requests in a separate thread."""
 
 if __name__ == '__main__':
 	gs = GenerationServer()
