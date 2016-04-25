@@ -45,6 +45,7 @@ RUN touch /opt/dcept/john.ini
 
 # Copy DCEPT source code into the container
 ADD ./dcept.py /opt/dcept/dcept.py
+ADD ./Cracker.py /opt/dcept/Cracker.py
 ADD ./GenerationServer.py /opt/dcept/GenerationServer.py
 ADD ./ConfigReader.py /opt/dcept/ConfigReader.py
 ADD ./alert.py /opt/dcept/alert.py
