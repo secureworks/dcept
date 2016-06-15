@@ -60,7 +60,7 @@ class ConfigReader():
 		if not self.domain:
 			raise ConfigError("You must configure a domain")
 
-		if not self.domain:
+		if not self.realm:
 			raise ConfigError("You must configure a realm")
 
 		if not self.honey_username:

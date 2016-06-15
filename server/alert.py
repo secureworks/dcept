@@ -35,7 +35,7 @@ def sendSyslog(host, message, severity=1, facility=4, port=514):
 	
 	sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 	data = '<%d>%s' % (severity + facility*8, message)
-	sock.sendto(data, (host, port))
+	sock.sendto(data, (host, int(port)))
 	sock.close()	
 	#rsyslog = logging.handlers.SysLogHandler(address=(host, port), facility=logging.handlers.SysLogHandler.LOG_USER, socktype=socket.SOCK_DGRAM)
 	#rsyslog.critical(message)
