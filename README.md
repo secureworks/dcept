@@ -77,7 +77,7 @@ root@host:~# apt-get install monodevelop mono-mcs
 Once mono is installed, change your working directory and then run the following to compile the source code.
 
 ```bash
-root@host:~# mcs ht-agent.cs -r:System.Data.dll -r:System.Web.Extensions.dll
+root@host:~# mcs ht-agent.cs -r:System.Data.dll -r:System.Web.Extensions.dll -r:System.Web.Services
 ```
 
 ### Deploying the Agent
