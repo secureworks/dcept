@@ -18,7 +18,8 @@ RUN apt-get install -y tcpreplay
 
 # Install dependencies for sniffer component
 RUN apt-get install -y tshark python-dev libxml2-dev libxslt1-dev
-RUN pip install pyshark
+RUN pip install --upgrade pip==9.0.1
+RUN pip install pyshark==0.3.8
 RUN pip install pyiface
 
 # Download community-enhanced version of John the Ripper password cracker
